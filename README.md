@@ -2,7 +2,7 @@
 
 ## Overview
 
-This project is a comprehensive visualization dashboard designed to interactively display data related to Bacillus subtilis (other species' dataset will be added). The dashboard supports multiple types of visualizations, including 3D and 2D graph visualizations, heatmaps, and parallel plots. Users can interact with the data through various controls such as sliders, checkboxes, and range selectors.
+This project is a comprehensive visualization dashboard designed to interactively display data related to Brassica napus. The dashboard supports multiple types of visualizations, including 3D and 2D graph visualizations, heatmaps, and parallel plots. Users can interact with the data through various controls such as sliders, checkboxes, and range selectors.
 
 ## Features
 
@@ -18,7 +18,7 @@ This project is a comprehensive visualization dashboard designed to interactivel
 
 1. **Clone the repository**:
     ```sh
-    git clone https://github.com/Devopriya-Tirtho/DashboardDevelopment_ResearchWork.git
+    git clone [https://github.com/Devopriya-Tirtho/DashboardDevelopment_ResearchWork.git](https://github.com/Devopriya-Tirtho/Visualization-Dashboard-for-Brassica-napus.git)
     cd visualization-dashboard
     ```
 
@@ -37,7 +37,7 @@ This project is a comprehensive visualization dashboard designed to interactivel
 
 ### Dataset Selection
 
-1. **Select Dataset**: Use the dropdown to select the dataset (`WT_BS` for Bacillus Subtilis Wild Type).
+1. **Select Dataset**: Use the dropdown to select the dataset (`Brassica napus (Canola/Rapeseed` for Brassica napus).
 2. **Loading Placeholders**: Upon selecting a dataset, placeholder images will appear indicating the loading process. The actual visualizations will replace these placeholders once the data is fully loaded.
 
 ### Node Selection
