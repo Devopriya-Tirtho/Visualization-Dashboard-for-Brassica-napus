@@ -1200,16 +1200,44 @@ function createHeatmap(data) {
                 .style('left', `${x1 + margin.left + 10}px`)
                 .style('top', `${y1 + margin.top + 10}px`)
                 .html(`Source: Bin ${minSource} - Bin ${maxSource}<br>Target: Bin ${minTarget} - Bin ${maxTarget}<br>Average Weight: ${avgWeight.toFixed(6)}`);
+
+            // Update the selected node IDs
+            selectedNodeIdsForRange = [];
+            for (let i = minSource; i <= maxSource; i++) {
+                selectedNodeIdsForRange.push(i.toString());
+            }
         }
     }
 
     function brushEnd(event) {
         if (!event.selection) {
             tooltip.style('display', 'none');
+            return;
         }
         d3.selectAll('.selection').style('display', 'none');
+    
+        const selection = event.selection;
+        const [[x0, y0], [x1, y1]] = selection;
+        const selectedSources = data.filter(d => xScale(d.Source) >= x0 && xScale(d.Source) <= x1);
+        const minSource = d3.min(selectedSources, d => d.Source);
+        const maxSource = d3.max(selectedSources, d => d.Source);
+    
+        // Set the range values in the input boxes
+        document.getElementById('fromBin').value = minSource;
+        document.getElementById('toBin').value = maxSource;
+    
+        // Create a new mouse event to simulate the button click
+        const visualizeRangeButton = document.getElementById('visualize-range');
+        const clickEvent = new MouseEvent('click', {
+            view: window,
+            bubbles: true,
+            cancelable: true
+        });
+        visualizeRangeButton.dispatchEvent(clickEvent);
     }
+    
 }
+
 
 
 
