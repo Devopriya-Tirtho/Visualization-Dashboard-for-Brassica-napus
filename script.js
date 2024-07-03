@@ -76,6 +76,9 @@ document.getElementById('visualize-nodes').addEventListener('click', function() 
     fetchAndFilterEdgeData(edgeDataPath, selectedNodeIds, interactionFilters, function(filteredEdges) {
         clearEdges3D();
         createEdges3D(filteredEdges);  // Draw 3D edges
+        // Highlight nodes in 3D
+        highlightNodes3D(selectedNodeIds);
+
         const context = document.getElementById('canvas2D').getContext('2d');
         drawEdges2D(filteredEdges, context);
 
@@ -130,6 +133,8 @@ document.getElementById('visualize-range').addEventListener('click', function() 
     fetchAndFilterEdgeData(edgeDataPath, selectedNodeIdsForRange, interactionFilters, function(filteredEdges) {
         clearEdges3D();
         createEdges3D(filteredEdges);
+        // Highlight nodes in 3D
+        highlightNodes3D(selectedNodeIdsForRange);
 
         const canvas = document.getElementById('canvas2D');
         const context = canvas.getContext('2d');
@@ -1649,6 +1654,24 @@ function updateHeatmapHighlights(svg, isRangeHighlight = false) {
                     tooltip.style('display', 'none');
                 });
         }
+
+        ///For Highlighting 3d nodes upon selection ///
+
+        function highlightNodes3D(nodeIds) {
+            scene.children.forEach(child => {
+                if (child.isMesh) {
+                    const numericId = child.name; // Assuming node ID is stored in the name property
+                    if (nodeIds.includes(numericId)) {
+                        child.material.color.set(0xFFAA18); // Highlight color, e.g., yellow
+                        child.scale.set(2, 2, 2); // Enlarge the node for highlighting
+                    } else {
+                        child.material.color.set(0xFF0000); // Default color, e.g., red
+                        child.scale.set(1.0, 1.0, 1.0); // Reset the size
+                    }
+                }
+            });
+        }
+        
         
         ///////////Functionality for Clear Button/////
         function clearVisualizations() {
