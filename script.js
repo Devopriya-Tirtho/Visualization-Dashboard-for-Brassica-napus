@@ -181,6 +181,8 @@ document.getElementById('apply-interaction').addEventListener('click', function(
         // Clear and update 3D edges
         clearEdges3D();
         createEdges3D(edgesToShow);
+        // Highlight nodes in 3D
+        highlightNodes3D(selectedNodeIds);
 
         // Clear and update 2D edges
         const canvas = document.getElementById('canvas2D');
