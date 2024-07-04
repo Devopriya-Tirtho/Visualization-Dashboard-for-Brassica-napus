@@ -1185,6 +1185,7 @@ function createHeatmap(data) {
             bubbles: true,
             cancelable: true
         });
+        tooltip.style('display', 'none'); // Hide tooltip when brush ends
         visualizeRangeButton.dispatchEvent(clickEvent);
     }
 }
