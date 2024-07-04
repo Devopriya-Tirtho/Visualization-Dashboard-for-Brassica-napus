@@ -5,6 +5,36 @@ import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.124/examples/js
 import { RGBELoader } from 'https://cdn.jsdelivr.net/npm/three@0.124/examples/jsm/loaders/RGBELoader.js'; 
 import { RoughnessMipmapper } from 'https://cdn.jsdelivr.net/npm/three@0.124/examples/jsm/utils/RoughnessMipmapper.js';
 
+
+let nodeData3D = null;
+let nodeData2D = null;
+let edgeData = null;
+let heatmapData = null;
+let geneDensityData = null;
+
+async function fetchAndCacheDatasets() {
+    try {
+        nodeData3D = await fetchJson('Brassica_Node_3D.json');
+        nodeData2D = await fetchJson('Brassica_Node_2D.json');
+        edgeData = await fetchJson('Brassica_Edge_top10_interactions.json');
+        heatmapData = await fetchJson('Brassica_Edge_processed_with_interaction.json');
+        //geneDensityData = await fetchJson('WT_BS_gene_density.json');
+        console.log("All datasets loaded successfully");
+    } catch (error) {
+        console.error("Error loading datasets:", error);
+    }
+}
+
+async function fetchJson(filePath) {
+    const response = await fetch(filePath);
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+}
+
+
+
 //For 3d vis nodehighlight interaction
 var selectedNode = null;
 
@@ -240,150 +270,96 @@ window.addEventListener('resize', () => {
 ///////////////////// Start of DOM Content /////////////////
 ////////////////////////////////////////////////////////////
 
-document.addEventListener('DOMContentLoaded', function() {
-
-    //////////////////////////////////////////////////////////////////////////////////
+document.addEventListener('DOMContentLoaded', async function() {
     const slider = document.getElementById('edgeWeightSlider');
     if (slider) {
         slider.addEventListener('input', () => {
             updateEdgeVisibility(slider.value);
         });
     }
- 
-//////////////////////////////////////////////////////////////////////////////////////
 
-        const datasetSelector = document.getElementById('dataset-selector');
-        datasetSelector.addEventListener('change', function() {
-            const selectedDataset = datasetSelector.value;
+    const datasetSelector = document.getElementById('dataset-selector');
+    datasetSelector.addEventListener('change', async function() {
+        const selectedDataset = datasetSelector.value;
 
-            if (selectedDataset === 'Brassica') {
-                // Show loading spinner and placeholders
-                document.getElementById('loadingSpinner').style.display = 'block';
-                document.getElementById('placeholder1').style.display = 'block';
-                document.getElementById('placeholder2').style.display = 'block';
-                document.getElementById('placeholder3').style.display = 'block';
-                document.getElementById('placeholder4').style.display = 'block';
+        if (selectedDataset === 'Brassica') {
+            // Show loading spinner and placeholders
+            document.getElementById('loadingSpinner').style.display = 'block';
+            document.getElementById('placeholder1').style.display = 'block';
+            document.getElementById('placeholder2').style.display = 'block';
+            document.getElementById('placeholder3').style.display = 'block';
+            document.getElementById('placeholder4').style.display = 'block';
 
-                const fetchData = async () => {
-                    try {
-                        clearVisualizationScenes(); // Clears all scenes
-                        await fetchNodesFromJson('Brassica_Node_3D.json'); // Specific for 3D visualizations
-                        await fetchNodesFromJson2D('Brassica_Node_2D.json'); // Specific for 2D visualizations
-                        await fetchProcessedEdgeData('Brassica_Edge_processed_with_interaction.json');
-                        await setupParallelPlotData('Brassica_Edge_top10_interactions.json'); // Parallel plot specific data
-                    } catch (error) {
-                        console.error("Error loading data:", error);
-                    } finally {
-                        // Hide loading spinner and placeholders
-                        document.getElementById('loadingSpinner').style.display = 'none';
-                        document.getElementById('placeholder1').style.display = 'none';
-                        document.getElementById('placeholder2').style.display = 'none';
-                        document.getElementById('placeholder3').style.display = 'none';
-                        document.getElementById('placeholder4').style.display = 'none';
-                    }
-                };
+            try {
+                clearVisualizationScenes(); // Clears all scenes
+                await fetchAndCacheDatasets(); // Fetch and cache all datasets
 
-                fetchData();
+                updateNodeDropdown(nodeData3D); // Update the dropdown with the new data
+                createNodes(nodeData3D); // For 3D visualization
+                draw2DVisualization(nodeData2D); // For 2D visualization
 
-                // Fetch gene density data separately
-                fetchGeneDensityData('WT_BS_gene_density.json');
-            } else {
-                // Clear existing visualizations and hide placeholders
-                clearVisualizationScenes();
+                // Use Web Worker for processing heatmap data
+                const worker = new Worker('worker.js');
+                worker.addEventListener('message', function(e) {
+                    const processedData = e.data;
+                    createHeatmap(processedData); // Render heatmap with processed data
+                });
+                worker.postMessage(heatmapData); // Send data to worker
+
+                setupParallelPlotData(edgeData); // Use cached parallel plot data
+            } catch (error) {
+                console.error("Error loading data:", error);
+            } finally {
+                // Hide loading spinner and placeholders
+                document.getElementById('loadingSpinner').style.display = 'none';
                 document.getElementById('placeholder1').style.display = 'none';
                 document.getElementById('placeholder2').style.display = 'none';
                 document.getElementById('placeholder3').style.display = 'none';
                 document.getElementById('placeholder4').style.display = 'none';
             }
-        });
-
-
-    // For Fetching data for 3d Vis
-    async function fetchNodesFromJson(filePath) {
-        try {
-            console.log("Fetching nodes from JSON...");
-            const response = await fetch(filePath);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            const data = await response.json();
-            console.log("Nodes data fetched successfully:", data);
-            updateNodeDropdown(data); // Update the dropdown with the new data
-            createNodes(data); // For 3D visualization
-            //draw2DVisualization(data); // For 2D visualization
-        } catch (error) {
-            console.error("Error fetching nodes:", error);
+        } else {
+            // Clear existing visualizations and hide placeholders
+            clearVisualizationScenes();
+            document.getElementById('placeholder1').style.display = 'none';
+            document.getElementById('placeholder2').style.display = 'none';
+            document.getElementById('placeholder3').style.display = 'none';
+            document.getElementById('placeholder4').style.display = 'none';
         }
-    }
-
-    // For Fetching data for 2d Vis
-    async function fetchNodesFromJson2D(filePath) {
-        try {
-            console.log("Fetching nodes from JSON...");
-            const response = await fetch(filePath);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            const data = await response.json();
-            console.log("Nodes data fetched successfully:", data);
-            //updateNodeDropdown(data); // Update the dropdown with the new data
-            //createNodes(data); // For 3D visualization
-            draw2DVisualization(data); // For 2D visualization
-        } catch (error) {
-            console.error("Error fetching nodes:", error);
-        }
-    }
-
-    // For Clicking in 3d Vis
-    console.log("Adding event listener to", renderer.domElement);
-    renderer.domElement.addEventListener('click', onCanvasClick, false);
-    function simpleClickTest(event) {
-        console.log("Canvas clicked at", event.clientX, event.clientY);
-    }
-    
-    renderer.domElement.removeEventListener('click', onCanvasClick);
-    renderer.domElement.addEventListener('click', simpleClickTest, false);
-
-
-    ///////////////////////////////
-    /// This function updates the dropdown menu filling with the nodes or bins available in the dataset ///
-    
-    function updateNodeDropdown(nodes) {
-        const nodeCheckboxesContainer = document.getElementById('node-checkboxes');
-        nodeCheckboxesContainer.innerHTML = ''; // Clear existing checkboxes
-    
-        nodes.forEach((node, index) => {
-            const checkboxContainer = document.createElement('div');
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.id = `node${index}`;
-    
-            // Extract only the numeric part of the node ID
-            const numericId = node.id.replace(/^\D+/g, ''); // Removes non-digit characters at the start
-            checkbox.dataset.nodeId = numericId; // Store only the numeric ID in data attribute
-    
-            const label = document.createElement('label');
-            label.htmlFor = `node${index}`;
-            label.textContent = node.id; // Display the original node ID as the label text
-    
-            checkboxContainer.appendChild(checkbox);
-            checkboxContainer.appendChild(label);
-            nodeCheckboxesContainer.appendChild(checkboxContainer);
-        });
-    }
-    
-
-
-    
-        // Initially call to setup listeners for static elements
-       // addDynamicEventListeners();
+    });
 
     addDynamicEventListeners();  // Initialize all event listeners
     setupDropdownToggle();       // Setup dropdown toggle behavior if defined
     addOpacityControl();  // Initialize opacity control
+});
 
-    //End of DomContentLoaded
+
+
+
+function updateNodeDropdown(nodes) {
+    const nodeCheckboxesContainer = document.getElementById('node-checkboxes');
+    nodeCheckboxesContainer.innerHTML = ''; // Clear existing checkboxes
+
+    nodes.forEach((node, index) => {
+        const checkboxContainer = document.createElement('div');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `node${index}`;
+
+        // Extract only the numeric part of the node ID
+        const numericId = node.id.replace(/^\D+/g, ''); // Removes non-digit characters at the start
+        checkbox.dataset.nodeId = numericId; // Store only the numeric ID in data attribute
+
+        const label = document.createElement('label');
+        label.htmlFor = `node${index}`;
+        label.textContent = node.id; // Display the original node ID as the label text
+
+        checkboxContainer.appendChild(checkbox);
+        checkboxContainer.appendChild(label);
+        nodeCheckboxesContainer.appendChild(checkboxContainer);
     });
+}
+
+
 ////////////////////////////////////////////////////////////
 ///////////////////////   End of DOM Content  /////////////////////////////////////
 ////////////////////////////////////////////////////////////
@@ -655,13 +631,12 @@ function setupAndDrawParallelPlot(dataset, selectedNodeIds) {
 
 // Function to setup and fetch data for the parallel plot
 
-async function setupParallelPlotData(filePath) {
-    //To cancel out the existing still picture so that the actual visualization comes up
+async function setupParallelPlotData() {
+    // To cancel out the existing still picture so that the actual visualization comes up
     document.getElementById('placeholder4').style.display = 'none';
     try {
-        console.log("Fetching parallel plot data...");
-        const response = await fetch(filePath);
-        const data = await response.json();
+        console.log("Using cached parallel plot data...");
+        const data = edgeData;  // Use the cached edge data
         console.log("Parallel plot data fetched successfully:", data);
         maxEdgeWeight = Math.max(...data.map(d => d.Weight));
         const allNodes = {
@@ -670,7 +645,7 @@ async function setupParallelPlotData(filePath) {
         };
         setupSVGandAxes(allNodes);
     } catch (error) {
-        console.error("Error fetching parallel plot data:", error);
+        console.error("Error setting up parallel plot data:", error);
     }
 }
 
@@ -1022,7 +997,7 @@ async function fetchProcessedEdgeData(filePath) {
         console.error("Error fetching processed edge data:", error);
     }
 }
-  
+
 function preprocessDataForHeatmap(rawData) {
     // Create a new array that will contain both halves of the matrix
     const processedData = [];
@@ -1046,7 +1021,8 @@ function preprocessDataForHeatmap(rawData) {
     });
     
     return processedData;
-  }
+}
+
 ////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////
 
@@ -1120,53 +1096,22 @@ function createHeatmap(data) {
         .call(d3.axisLeft(yScale).tickFormat(d => `Bin ${d}`));
 
     // Create heatmap squares without stroke to mimic the Python visualization
+    const gridSizeX = width / maxDataValue;
+    const gridSizeY = height / maxDataValue;
+
     heatmapGroup.selectAll('rect')
         .data(data)
         .enter()
         .append('rect')
         .attr('x', d => xScale(d.Source)) // Use the xScale for positioning
         .attr('y', d => yScale(d.Target)) // Use the yScale for positioning
-        .attr('width', width / maxDataValue) // Set width to gridSizeX
-        .attr('height', height / maxDataValue) // Set height to gridSizeY
+        .attr('width', gridSizeX) // Set width to gridSizeX
+        .attr('height', gridSizeY) // Set height to gridSizeY
         .style('fill', d => colorScale(d.Weight))
         .style('stroke-width', 0); // No stroke for a seamless appearance
 
     // Call the function to draw gene density lines
     drawGeneDensityLines(svg, width, height, margin, xScale, yScale);
-
-    // Store the initial scales for resetting the zoom
-    const initialXScale = xScale.copy();
-    const initialYScale = yScale.copy();
-
-    // Set up zoom functionality
-    const zoom = d3.zoom()
-        .scaleExtent([1, 10])  // Limit zooming between 1x and 10x
-        .translateExtent([[0, 0], [width, height]]) // Constrain panning and zooming within the visualization area
-        .extent([[0, 0], [width, height]])
-        .on('zoom', (event) => {
-            // Log the transformation values
-            console.log("Zoom Transform:", event.transform);
-
-            // Apply transformation to the heatmap group
-            if (event.transform.k === 1) {
-                // Reset transformation to initial state when zoom level is at minimum
-                heatmapGroup.attr('transform', `translate(${margin.left},${margin.top})`);
-                xAxisGroup.call(d3.axisBottom(initialXScale).tickFormat(d => `Bin ${d}`));
-                yAxisGroup.call(d3.axisLeft(initialYScale).tickFormat(d => `Bin ${d}`));
-            } else {
-                // Apply the zoom transformation
-                heatmapGroup.attr('transform', event.transform);
-                heatmapGroup.attr('stroke-width', 1 / event.transform.k);
-
-                // Update the axes based on the zoom level
-                const newXScale = event.transform.rescaleX(xScale);
-                const newYScale = event.transform.rescaleY(yScale);
-                xAxisGroup.call(d3.axisBottom(newXScale).tickFormat(d => `Bin ${d}`));
-                yAxisGroup.call(d3.axisLeft(newYScale).tickFormat(d => `Bin ${d}`));
-            }
-        });
-
-    svg.call(zoom);
 
     // Define brush for rectangle selection
     const brush = d3.brush()
@@ -1242,17 +1187,7 @@ function createHeatmap(data) {
         });
         visualizeRangeButton.dispatchEvent(clickEvent);
     }
-    
 }
-
-
-
-
-
-
-
-
-
 
 
 
