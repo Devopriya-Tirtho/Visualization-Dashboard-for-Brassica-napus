@@ -547,15 +547,19 @@ let edges2D = [];
 
 
 function drawEdges2D(edgeData, context) {
-    context.strokeStyle = '#CCCCCC';  // Light grey color for edges
+    // Determine the range of edge weights
+    const maxWeight = d3.max(edgeData, d => d.Weight);
+    const minWeight = d3.min(edgeData, d => d.Weight);
+
+    // Create a color scale based on edge weights
+    const colorScale = d3.scaleLinear()
+        .domain([minWeight, maxWeight])
+        .range(['#D3D3D3', '#000000']);  // Light grey to black
+
     context.globalAlpha = 0.5;  // 50% opacity for a subtle appearance
     context.lineWidth = 2;  // Slightly thicker line for better visibility
     context.lineCap = 'round';  // Rounded ends for a smoother look
     context.lineJoin = 'round';  // Rounded corners at line joins
-
-    // Setting shadow for a glow effect
-    context.shadowColor = '#CCCCCC';
-    context.shadowBlur = 10;  // Adjust the blur level for more or less glow
 
     edges2D = []; // Clear the edges2D array before drawing
 
@@ -565,11 +569,12 @@ function drawEdges2D(edgeData, context) {
 
         if (sourceNode && targetNode) {
             context.beginPath();
+            context.strokeStyle = colorScale(edge.Weight);  // Set stroke color based on weight
             context.moveTo(sourceNode.x, sourceNode.y);
             context.lineTo(targetNode.x, targetNode.y);
             context.stroke();
             edges2D.push({ source: sourceNode, target: targetNode });  // Push edge into edges2D array
-            console.log(`Edge drawn from ${edge.Source} to ${edge.Target}`);
+            console.log(`Edge drawn from ${edge.Source} to ${edge.Target} with weight ${edge.Weight}`);
         } else {
             console.log(`Nodes not found for edge from ${edge.Source} to ${edge.Target}`);
         }
@@ -577,8 +582,11 @@ function drawEdges2D(edgeData, context) {
 
     // Resetting context properties after drawing
     context.globalAlpha = 1.0;
-    context.shadowBlur = 0;  // Remove shadow after drawing edges
+    context.lineWidth = 1; // Reset line width to default
+    context.lineCap = 'butt'; // Reset line cap to default
+    context.lineJoin = 'miter'; // Reset line join to default
 }
+
 
 function clearOnlyEdges2D(context, canvas, nodeData) {
     context.clearRect(0, 0, canvas.width, canvas.height); // Clears the entire canvas
@@ -649,7 +657,19 @@ async function setupParallelPlotData() {
     }
 }
 
+///
+let sourceScale, targetScale, svgWidth, svgHeight;
+let currentLinkColor = 'color';
 
+document.getElementById('colorLinks').addEventListener('click', () => {
+    setLinkColor('color');
+});
+document.getElementById('grayLinks').addEventListener('click', () => {
+    setLinkColor('gray');
+});
+
+
+////
 function setupSVGandAxes(allNodes) {
     // Combine sources and targets into one set, then convert to sorted array
     const combinedNodes = [...new Set([...allNodes.sources, ...allNodes.targets])].sort((a, b) => a - b);
@@ -671,11 +691,11 @@ function setupSVGandAxes(allNodes) {
         .append("g")
         .attr("transform", `translate(${margin.left},${margin.top})`);
 
-    const sourceScale = d3.scalePoint()
+    sourceScale = d3.scalePoint()
         .domain(combinedNodes)
         .range([0, height]);
 
-    const targetScale = d3.scalePoint()
+    targetScale = d3.scalePoint()
         .domain(combinedNodes)
         .range([0, height]);
 
@@ -696,16 +716,99 @@ function setupSVGandAxes(allNodes) {
         .call(d3.axisRight(targetScale).tickValues(ticks))
         .attr("transform", `translate(${width - 25},0)`);  // Adjusted translation for right axis
 
+    svgWidth = width;
+    svgHeight = height;
+
+    // Initial draw of links with an empty dataset
+    drawLinks({
+        svg: svg,
+        sourceScale: sourceScale,
+        targetScale: targetScale,
+        data: [], // Pass an empty array to not draw any links initially
+        width: svgWidth,
+        height: svgHeight
+    });
+
     return { svg, sourceScale, targetScale, width, height };
 }
 
 
+
+///
+function setLinkColor(color) {
+    currentLinkColor = color;
+    const svg = d3.select('#visualization4 svg');
+
+    svg.selectAll("path")
+        .attr("stroke", d => color === 'gray' ? 'gray' : initialColorScale(d.Source));
+
+    // Update legend and tooltip visibility
+    const legend = svg.select(".legend");
+    if (color === 'gray') {
+        legend.style("display", "none");
+        d3.select("#tooltip").style("display", "none");
+    } else {
+        legend.style("display", "block");
+    }
+}
+
+function updateLegendAndTooltip(colorScale) {
+    const svg = d3.select('#visualization4 svg');
+
+    // Remove existing legend items
+    svg.selectAll(".legend-item").remove();
+
+    // Create a new legend for color representation of each source
+    const legend = svg.select(".legend");
+
+    const legendItems = legend.selectAll(".legend-item")
+        .data(colorScale.domain())
+        .enter()
+        .append("g")
+        .attr("class", "legend-item")
+        .attr("transform", (d, i) => `translate(${i * 80}, 0)`);
+
+    legendItems.append("rect")
+        .attr("x", 0)
+        .attr("width", 12)
+        .attr("height", 12)
+        .style("fill", d => colorScale(d));
+
+    legendItems.append("text")
+        .attr("x", 16)
+        .attr("y", 6)
+        .attr("dy", "0.35em")
+        .text(d => `Source: ${d}`)
+        .style("font-size", "10px");
+
+    // Tooltip for legend items
+    legendItems.on("mouseover", function(event, d) {
+        d3.select("#tooltip")
+          .style("display", "block")
+          .style("left", (event.pageX + 10) + "px")
+          .style("top", (event.pageY + 10) + "px")
+          .html(`Source: ${d}<br>Color: ${colorScale(d)}`);
+    })
+    .on("mouseout", function() {
+        d3.select("#tooltip").style("display", "none");
+    });
+}
+
+
+
+
 ///Function for drawing links//////
-function drawLinks({ svg, sourceScale, targetScale, data, width, height }) {
+let initialColorScale;
+
+function drawLinks({ svg, sourceScale, targetScale, data, width, height, useWeightColor = false }) {
     svg.selectAll("path").remove();
 
-    const colorScale = d3.scaleOrdinal(d3.schemeCategory10)
+    initialColorScale = d3.scaleOrdinal(d3.schemeCategory10)
         .domain([...new Set(data.map(d => d.Source))]);
+
+    // Define a sequential color scale based on weight for gray links
+    const weightColorScale = d3.scaleSequential(d3.interpolateBlues)
+        .domain(d3.extent(data, d => d.Weight));
 
     const links = svg.append("g")
        .selectAll("path")
@@ -717,7 +820,7 @@ function drawLinks({ svg, sourceScale, targetScale, data, width, height }) {
            const targetY = targetScale(d.Target);
            return `M20,${sourceY} L${width - 20},${targetY}`;  // Adjusted to start and end within the margins
        })
-       .attr("stroke", d => colorScale(d.Source))
+       .attr("stroke", d => useWeightColor ? weightColorScale(d.Weight) : initialColorScale(d.Source))
        .attr("stroke-width", 2)
        .attr("opacity", 0.7)
        .attr("fill", "none");
@@ -735,46 +838,23 @@ function drawLinks({ svg, sourceScale, targetScale, data, width, height }) {
     });
 
     // Create a legend for color representation of each source
-// Create a legend for color representation of each source
-const legend = svg.append("g")
-    .attr("class", "legend")
-    .attr("transform", "translate(10,355)");  // Adjusted to place at the desired position
+    const legend = svg.append("g")
+        .attr("class", "legend")
+        .attr("transform", "translate(10,355)");  // Adjusted to place at the desired position
 
-const legendItems = legend.selectAll(".legend-item")
-    .data(colorScale.domain())
-    .enter()
-    .append("g")
-    .attr("class", "legend-item")
-    .attr("transform", (d, i) => `translate(${i * 80}, 0)`);  // Adjusted to place items horizontally
-
-legendItems.append("rect")
-    .attr("x", 0)
-    .attr("width", 12)  // Adjusted width
-    .attr("height", 12)  // Adjusted height
-    .style("fill", d => colorScale(d));
-
-legendItems.append("text")
-    .attr("x", 16)
-    .attr("y", 6)
-    .attr("dy", "0.35em")
-    .text(d => `Source: ${d}`)
-    .style("font-size", "10px");  // Adjusted font size
-
-    // Tooltip for legend items
-    legendItems.on("mouseover", function(event, d) {
-        d3.select("#tooltip")
-          .style("display", "block")
-          .style("left", (event.pageX + 10) + "px")
-          .style("top", (event.pageY + 10) + "px")
-          .html(`Source: ${d}<br>Color: ${colorScale(d)}`);
-    })
-    .on("mouseout", function() {
-        d3.select("#tooltip").style("display", "none");
-    });
+    if (!useWeightColor) {
+        updateLegendAndTooltip(initialColorScale);
+    }
 
     // Add the opacity control slider functionality
     addOpacityControl();
 }
+
+
+
+
+
+
 
 
 
@@ -1375,6 +1455,9 @@ function updateHeatmapHighlights(svg, isRangeHighlight = false) {
     
     
     //Updating Tooltip for 3d Visualization
+    let lastHighlightedNode = null;
+
+    // Function to update the tooltip for 3D visualization
     function updateTooltip(event, node) {
         const tooltip = document.getElementById('tooltip3D');
         if (node) {
@@ -1387,8 +1470,7 @@ function updateHeatmapHighlights(svg, isRangeHighlight = false) {
         }
     }
     
-
-    //Function for mouse hover on 3d visualization
+    // Function for mouse hover on 3D visualization
     renderer.domElement.addEventListener('mousemove', function(event) {
         var rect = renderer.domElement.getBoundingClientRect();  // Get the bounding rectangle of renderer
     
@@ -1406,17 +1488,32 @@ function updateHeatmapHighlights(svg, isRangeHighlight = false) {
     
         if (intersects.length > 0) {
             let hoveredNode = intersects[0].object;
+    
+            if (lastHighlightedNode && lastHighlightedNode !== hoveredNode) {
+                // Reset the previous highlighted node's color
+                lastHighlightedNode.material.emissive.setHex(lastHighlightedNode.material.color.getHex());
+            }
+    
+            // Highlight the new hovered node
             hoveredNode.material.emissive.setHex(0xffff00); // Highlight the node
+    
+            // Update tooltip
             updateTooltip(event, hoveredNode);
+    
+            // Store the current hovered node as the last highlighted node
+            lastHighlightedNode = hoveredNode;
         } else {
-            scene.children.forEach(child => {
-                if (child instanceof THREE.Mesh) {
-                    child.material.emissive.setHex(child.material.color.getHex()); // Reset glow to original color
-                }
-            });
-            updateTooltip(event, null); // Hide tooltip when not hovering over any node
+            if (lastHighlightedNode) {
+                // Reset the previous highlighted node's color
+                lastHighlightedNode.material.emissive.setHex(lastHighlightedNode.material.color.getHex());
+                lastHighlightedNode = null;
+            }
+            
+            // Hide tooltip when not hovering over any node
+            updateTooltip(event, null);
         }
     });
+    
     
     
     // For Mouse Click Function- Must have; It control the mouse click in the node selection dropdown menu as well

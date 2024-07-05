@@ -329,6 +329,27 @@ canvas {
 
 
 
+.visualization {
+    position: relative;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.visualization-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px;
+}
+
+.visualization-title {
+    text-align: center;
+    flex-grow: 1;
+}
+
+
+
 
 
 
