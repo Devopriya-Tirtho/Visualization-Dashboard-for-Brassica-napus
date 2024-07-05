@@ -851,15 +851,6 @@ function drawLinks({ svg, sourceScale, targetScale, data, width, height, useWeig
 }
 
 
-
-
-
-
-
-
-
-
-
 //Control Opacity Function for Parallel Plot, 3d and 2d vis
 function addOpacityControl() {
     const slider = document.getElementById('linkOpacitySlider');
