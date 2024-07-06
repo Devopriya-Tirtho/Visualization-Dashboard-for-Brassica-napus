@@ -12,26 +12,116 @@ let edgeData = null;
 let heatmapData = null;
 let geneDensityData = null; //not having gene density data for brassica
 
+// Step 1: Initialize IndexedDB
+function openDatabase() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('myDatabase', 1);
+
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains('datasets')) {
+                db.createObjectStore('datasets');
+            }
+        };
+
+        request.onsuccess = (event) => {
+            resolve(event.target.result);
+        };
+
+        request.onerror = (event) => {
+            reject(event.target.error);
+        };
+    });
+}
+
+// Step 2: Store Data in IndexedDB
+function storeInDatabase(key, data) {
+    return openDatabase().then((db) => {
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(['datasets'], 'readwrite');
+            const objectStore = transaction.objectStore('datasets');
+            const request = objectStore.put(data, key);
+
+            request.onsuccess = () => {
+                resolve();
+            };
+
+            request.onerror = (event) => {
+                reject(event.target.error);
+            };
+        });
+    });
+}
+
+// Step 3: Retrieve Data from IndexedDB
+function retrieveFromDatabase(key) {
+    return openDatabase().then((db) => {
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(['datasets'], 'readonly');
+            const objectStore = transaction.objectStore('datasets');
+            const request = objectStore.get(key);
+
+            request.onsuccess = (event) => {
+                resolve(event.target.result);
+            };
+
+            request.onerror = (event) => {
+                reject(event.target.error);
+            };
+        });
+    });
+}
+
+// Step 4: Update fetchAndCacheJson Function
+async function fetchAndCacheJson(filePath, storageKey) {
+    // Check if data is already in IndexedDB
+    const cachedData = await retrieveFromDatabase(storageKey);
+    if (cachedData) {
+        console.log(`Using cached data for ${storageKey}`);
+        return cachedData;
+    }
+
+    // Fetch data from server if not cached
+    const response = await fetch(filePath);
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    // Store fetched data in IndexedDB
+    await storeInDatabase(storageKey, data);
+    return data;
+}
+
+// Fetch and cache datasets function
 async function fetchAndCacheDatasets() {
     try {
-        nodeData3D = await fetchJson('Brassica_Node_3D.json');
-        nodeData2D = await fetchJson('Brassica_Node_2D.json');
-        edgeData = await fetchJson('Brassica_Edge_top10_interactions.json');
-        heatmapData = await fetchJson('Brassica_Edge_processed_with_interaction.json');
-        //geneDensityData = await fetchJson('WT_BS_gene_density.json');
+        nodeData3D = await fetchAndCacheJson('Brassica_Node_3D.json', 'nodeData3D');
+        nodeData2D = await fetchAndCacheJson('Brassica_Node_2D.json', 'nodeData2D');
+        edgeData = await fetchAndCacheJson('Brassica_Edge_top10_interactions.json', 'edgeData');
+        heatmapData = await fetchAndCacheJson('Brassica_Edge_processed_with_interaction.json', 'heatmapData');
+        //geneDensityData = await fetchAndCacheJson('WT_BS_gene_density.json', 'geneDensityData');
         console.log("All datasets loaded successfully");
     } catch (error) {
         console.error("Error loading datasets:", error);
     }
 }
 
-async function fetchJson(filePath) {
-    const response = await fetch(filePath);
-    if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    return await response.json();
+
+// Add a function to clear the local storage if needed
+function clearLocalStorage() {
+    localStorage.removeItem('nodeData3D');
+    localStorage.removeItem('nodeData2D');
+    localStorage.removeItem('edgeData');
+    localStorage.removeItem('heatmapData');
+    // localStorage.removeItem('geneDensityData');
+    console.log("Local storage cleared");
 }
+
+// Call this function when you need to clear the cache
+// clearLocalStorage();
+
 
 
 
@@ -1760,6 +1850,7 @@ function updateHeatmapHighlights(svg, isRangeHighlight = false) {
         
             // Optionally, reinitialize nodes (without edges)
             // fetchNodesFromJson('WT_BS_Node_3D.json'); // Uncomment if you want to reload nodes
+            clearLocalStorage();
         }
         
         document.getElementById('clear-visualizations').addEventListener('click', clearVisualizations);
