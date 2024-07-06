@@ -10,7 +10,7 @@ let nodeData3D = null;
 let nodeData2D = null;
 let edgeData = null;
 let heatmapData = null;
-let geneDensityData = null;
+let geneDensityData = null; //not having gene density data for brassica
 
 async function fetchAndCacheDatasets() {
     try {
