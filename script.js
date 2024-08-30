@@ -77,7 +77,7 @@ async function fetchAndCacheJson(filePath, storageKey) {
     // Check if data is already in IndexedDB
     const cachedData = await retrieveFromDatabase(storageKey);
     if (cachedData) {
-        console.log(`Using cached data for ${storageKey}`);
+        //console.log(`Using cached data for ${storageKey}`);
         return cachedData;
     }
 
@@ -102,7 +102,7 @@ async function fetchAndCacheDatasets() {
         edgeData = await fetchAndCacheJson('Brassica_Edge_top10_interactions.json', 'edgeData');
         heatmapData = await fetchAndCacheJson('Brassica_Edge_processed_with_interaction.json', 'heatmapData');
         //geneDensityData = await fetchAndCacheJson('WT_BS_gene_density.json', 'geneDensityData');
-        console.log("All datasets loaded successfully");
+        //console.log("All datasets loaded successfully");
     } catch (error) {
         console.error("Error loading datasets:", error);
     }
@@ -116,7 +116,7 @@ function clearLocalStorage() {
     localStorage.removeItem('edgeData');
     localStorage.removeItem('heatmapData');
     // localStorage.removeItem('geneDensityData');
-    console.log("Local storage cleared");
+    //console.log("Local storage cleared");
 }
 
 // Call this function when you need to clear the cache
@@ -291,12 +291,12 @@ document.getElementById('apply-interaction').addEventListener('click', function(
         // Calculate the number of edges to show based on the slider percentage
         const numberOfEdgesToShow = Math.ceil(filteredEdges.length * (value / 100));
         document.getElementById('edgeWeightValue').innerText = `${value}% (${numberOfEdgesToShow} edges)`;
-        console.log(`Slider value: ${value}% - Showing top ${numberOfEdgesToShow} weighted edges.`);
+        //console.log(`Slider value: ${value}% - Showing top ${numberOfEdgesToShow} weighted edges.`);
 
         // Sort edges by weight in descending order and take the top N based on the slider
         filteredEdges.sort((a, b) => b.Weight - a.Weight);
         const edgesToShow = filteredEdges.slice(0, numberOfEdgesToShow);
-        console.log(`Edges to show after filtering: ${edgesToShow.length}`);
+        //console.log(`Edges to show after filtering: ${edgesToShow.length}`);
 
         // Clear and update 3D edges
         clearEdges3D();
@@ -494,23 +494,6 @@ function filterTopWeightedEdges(edges, selectedNodeIds) {
 
 
 
-///////////////////////////////////
-//Function for Handling Filtered edges////
-
-function fetchAndFilterEdgeData(edgeDataPath, selectedNodeIds, interactionFilters, callback) {
-    fetch(edgeDataPath)
-        .then(response => response.json())
-        .then(allEdges => {
-            let filteredEdges = allEdges.filter(edge => selectedNodeIds.includes(String(edge.Source)) || selectedNodeIds.includes(String(edge.Target)));
-            if (interactionFilters && interactionFilters.length > 0) {
-                filteredEdges = filteredEdges.filter(edge => interactionFilters.includes(edge.Interaction));
-            }
-            callback(filteredEdges);
-        })
-        .catch(error => console.error("Error fetching and filtering edge data:", error));
-}
-
-
 
     
 ////////////////////////////////////////////////////////////
@@ -522,28 +505,36 @@ function fetchAndFilterEdgeData(edgeDataPath, selectedNodeIds, interactionFilter
 let maxEdgeWeight = 0;  // Global variable to store the maximum edge weight
 
 function updateEdgeVisibility(value) {
-    const selectedNodeIds = selectedNodeIdsForRange.length > 0 ? selectedNodeIdsForRange : Array.from(document.querySelectorAll('#node-checkboxes input[type="checkbox"]:checked')).map(checkbox => checkbox.dataset.nodeId);
+    const selectedNodeIds = selectedNodeIdsForRange.length > 0 
+        ? selectedNodeIdsForRange 
+        : Array.from(document.querySelectorAll('#node-checkboxes input[type="checkbox"]:checked'))
+            .map(checkbox => checkbox.dataset.nodeId);
+
     const selectedDataset = document.getElementById('dataset-selector').value;
-    const edgeDataPath = selectedDataset === 'Brassica' ? 'Brassica_Edge_top10_interactions.json' : 'Other_Dataset_Edge.json';
-    const nodeDataPath = selectedDataset === 'Brassica' ? 'Brassica_Node_2D.json' : 'Other_Dataset_Node_data.json';
+    const edgeDataPath = selectedDataset === 'Brassica' 
+        ? 'Brassica_Edge_top10_interactions.json' 
+        : 'Other_Dataset_Edge.json';
+    const nodeDataPath = selectedDataset === 'Brassica' 
+        ? 'Brassica_Node_2D.json' 
+        : 'Other_Dataset_Node_data.json';
 
     const interactionFilters = Array.from(document.querySelectorAll('input[name="interaction"]:checked'))
                                 .map(checkbox => parseInt(checkbox.value));
 
+    // Fetch and filter edge data based on selected nodes and interaction filters
     fetchAndFilterEdgeData(edgeDataPath, selectedNodeIds, interactionFilters, function(filteredEdges) {
-        // Calculate the number of edges to show based on the slider percentage
-        const numberOfEdgesToShow = Math.ceil(filteredEdges.length * (value / 100));
-        document.getElementById('edgeWeightValue').innerText = `${value}% (${numberOfEdgesToShow} edges)`;
-        console.log(`Slider value: ${value}% - Showing top ${numberOfEdgesToShow} weighted edges.`);
+        // Sort and select the top edges based on the slider value
+        const edgesToShow = getTopEdges(filteredEdges, value);
+        document.getElementById('edgeWeightValue').innerText = `${value}% (${edgesToShow.length} edges)`;
 
-        // Sort edges by weight in descending order and take the top N based on the slider
-        filteredEdges.sort((a, b) => b.Weight - a.Weight);
-        const edgesToShow = filteredEdges.slice(0, numberOfEdgesToShow);
-        console.log(`Edges to show after filtering: ${edgesToShow.length}`);
+        // Log the edges used in the 3D visualization
+        console.log("3D Visualization Edges:", edgesToShow);
 
+        // Clear and create 3D edges
         clearEdges3D();
         createEdges3D(edgesToShow);
 
+        // Fetch node data and draw 2D edges
         const canvas = document.getElementById('canvas2D');
         const context = canvas.getContext('2d');
         fetch(nodeDataPath).then(response => response.json()).then(nodeData => {
@@ -551,26 +542,49 @@ function updateEdgeVisibility(value) {
             drawEdges2D(edgesToShow, context);
         });
 
-        // Update the parallel plot
-        updateParallelPlot(edgeDataPath, selectedNodeIds, numberOfEdgesToShow);
+        // Update the parallel plot using the filtered edges
+        updateParallelPlot(edgeDataPath, selectedNodeIds, value, edgesToShow);
     });
 }
 
-
-
-
-
-// Function for updating the parallel plot ///
-
-function updateParallelPlot(edgeDataPath, selectedNodeIds, numberOfEdgesToShow) {
+function updateParallelPlot(edgeDataPath, selectedNodeIds, value, edgesFrom3D = []) {
     fetch(edgeDataPath)
         .then(response => response.json())
         .then(data => {
-            const filteredData = data.filter(d => selectedNodeIds.includes(d.Source.toString()));
-            filteredData.sort((a, b) => b.Weight - a.Weight); // Sort by weight descending
-            const edgesToShow = filteredData.slice(0, numberOfEdgesToShow); // Take top N edges based on slider
+            console.log("Fetched data for Parallel Plot:", data);
 
-            // If no SVG exists, initialize it
+            // Filter edges based on selected source nodes
+            const filteredEdges = data.filter(d => selectedNodeIds.includes(d.Source.toString()));
+            const edgesToShow = getTopEdges(filteredEdges, value);
+
+            console.log("Edges passed from 3D Visualization:", edgesFrom3D);
+            console.log("Edges filtered for Parallel Plot:", edgesToShow);
+
+            // Check for discrepancies between 3D and parallel plot edges
+            const discrepancy = edgesFrom3D.filter(edge3D => !edgesToShow.some(edge => 
+                edge.Source === edge3D.Source && 
+                edge.Target === edge3D.Target && 
+                edge.Weight === edge3D.Weight
+            ));
+            console.log("Discrepancy between 3D and Parallel Plot Edges:", discrepancy);
+
+            // Log the first discrepancy if there is one
+            if (discrepancy.length > 0) {
+                console.log("First discrepancy details:", {
+                    EdgeIn3D: discrepancy[0],
+                    CorrespondingEdgeInParallelPlot: edgesToShow.find(edge => 
+                        edge.Source === discrepancy[0].Source && 
+                        edge.Target === discrepancy[0].Target)
+                });
+            }
+
+            // If there are no edges to show, exit early
+            if (edgesToShow.length === 0) {
+                console.warn("No edges to display in Parallel Plot.");
+                return;
+            }
+
+            // Set up the parallel plot visualization
             const allNodes = {
                 sources: [...new Set(data.map(d => d.Source))],
                 targets: [...new Set(data.map(d => d.Target))]
@@ -581,6 +595,35 @@ function updateParallelPlot(edgeDataPath, selectedNodeIds, numberOfEdgesToShow) 
         })
         .catch(error => console.error("Error updating parallel plot:", error));
 }
+
+function getTopEdges(edges, value) {
+    edges.sort((a, b) => b.Weight - a.Weight);
+    const numberOfEdgesToShow = Math.ceil(edges.length * (value / 100));
+    return edges.slice(0, numberOfEdgesToShow);
+}
+
+
+///////////////////////////////////
+//Function for Handling Filtered edges////
+
+function fetchAndFilterEdgeData(edgeDataPath, selectedNodeIds, interactionFilters, callback) {
+    fetch(edgeDataPath)
+        .then(response => response.json())
+        .then(allEdges => {
+            // Filter edges to include only those where the source node is in selectedNodeIds
+            let filteredEdges = allEdges.filter(edge => selectedNodeIds.includes(String(edge.Source)));
+
+            // Apply interaction filters if provided
+            if (interactionFilters && interactionFilters.length > 0) {
+                filteredEdges = filteredEdges.filter(edge => interactionFilters.includes(edge.Interaction));
+            }
+
+            callback(filteredEdges);
+        })
+        .catch(error => console.error("Error fetching and filtering edge data:", error));
+}
+
+
 
 
 
@@ -598,31 +641,62 @@ function clearEdges3D() {
 
 // Function for drawing edges of selected nodes for 3D visualization
 function createEdges3D(edgeData) {
-    // Use a light grey color (e.g., #CCCCCC) and set transparency
-    const lineMaterial = new THREE.LineBasicMaterial({
-        color: 0xCCCCCC,
-        transparent: true,
-        opacity: 0.5
-    });
+    // Define the colors for interpolation with a broader range
+    const startColor = new THREE.Color(0xFFFFFF); // White
+    const endColor = new THREE.Color(0x00008B);   // Dark Blue
+    const blackColor = new THREE.Color(0x000000); // Black
+
+    // Identify the maximum weight
+    const maxWeight = 1000.0;
+
+    // Filter out the maximum weight edges and find the minimum weight for the rest
+    const nonMaxWeights = edgeData.filter(edge => edge.Weight !== maxWeight).map(edge => edge.Weight);
+    const minWeight = Math.min(...nonMaxWeights);
 
     edgeData.forEach(edge => {
         const sourceNode = scene.getObjectByName(String(edge.Source));
         const targetNode = scene.getObjectByName(String(edge.Target));
 
         if (sourceNode && targetNode) {
+            let edgeColor;
+
+            if (edge.Weight === maxWeight) {
+                // Apply black color to edges with the maximum weight
+                edgeColor = blackColor;
+            } else {
+                // Apply a non-linear scaling to the weight for better color contrast
+                const normalizedWeight = Math.pow((edge.Weight - minWeight) / (maxWeight - minWeight), 0.5);
+
+                // Interpolate between the chosen colors based on the adjusted normalized weight
+                edgeColor = startColor.clone().lerp(endColor, normalizedWeight);
+            }
+
+            const lineMaterial = new THREE.LineBasicMaterial({
+                color: edgeColor,
+                transparent: true,
+                opacity: 1.0
+            });
+
             const points = [sourceNode.position.clone(), targetNode.position.clone()];
             const geometry = new THREE.BufferGeometry().setFromPoints(points);
             const line = new THREE.Line(geometry, lineMaterial);
+
+            // Store the source, target, and weight in userData
+            line.userData = { source: edge.Source, target: edge.Target, weight: edge.Weight };
+
             scene.add(line);
-            edges3D.push(line);  // Push edge into edges3D array
-            console.log(`Drawing edge between ${edge.Source} and ${edge.Target}`);
-        } else {
-            console.log(`Failed to find nodes for edge between ${edge.Source} and ${edge.Target}`);
+            edges3D.push(line);
         }
     });
 
     renderer.render(scene, camera);
 }
+
+
+
+
+
+
 
 
     
@@ -664,9 +738,9 @@ function drawEdges2D(edgeData, context) {
             context.lineTo(targetNode.x, targetNode.y);
             context.stroke();
             edges2D.push({ source: sourceNode, target: targetNode });  // Push edge into edges2D array
-            console.log(`Edge drawn from ${edge.Source} to ${edge.Target} with weight ${edge.Weight}`);
+            //console.log(`Edge drawn from ${edge.Source} to ${edge.Target} with weight ${edge.Weight}`);
         } else {
-            console.log(`Nodes not found for edge from ${edge.Source} to ${edge.Target}`);
+            //console.log(`Nodes not found for edge from ${edge.Source} to ${edge.Target}`);
         }
     });
 
@@ -710,14 +784,14 @@ function setupAndDrawParallelPlot(dataset, selectedNodeIds) {
             const filteredData = data.filter(d => selectedNodeIds.includes(String(d.Source)));
 
             if (filteredData.length === 0) {
-                console.log("No data to draw links for selected nodes.");
+                //console.log("No data to draw links for selected nodes.");
                 return;
             }
 
             // Setup SVG and axes using allNodes to ensure all possible nodes are included
             const { svg, sourceScale, targetScale, width, height } = setupSVGandAxes(allNodes);
 
-            console.log("Filtered data for links:", filteredData);
+            //console.log("Filtered data for links:", filteredData);
 
             // Draw links only for selected nodes using the filtered data
             drawLinks({ svg, sourceScale, targetScale, data: filteredData, width }); 
@@ -733,9 +807,9 @@ async function setupParallelPlotData() {
     // To cancel out the existing still picture so that the actual visualization comes up
     document.getElementById('placeholder4').style.display = 'none';
     try {
-        console.log("Using cached parallel plot data...");
+        //console.log("Using cached parallel plot data...");
         const data = edgeData;  // Use the cached edge data
-        console.log("Parallel plot data fetched successfully:", data);
+        //console.log("Parallel plot data fetched successfully:", data);
         maxEdgeWeight = Math.max(...data.map(d => d.Weight));
         const allNodes = {
             sources: [...new Set(data.map(d => d.Source))],
@@ -1149,9 +1223,9 @@ function getMin(data, coord) {
 //////////////////////////////////////
 async function fetchProcessedEdgeData(filePath) {
     try {
-        console.log("Fetching processed edge data...");
+        //console.log("Fetching processed edge data...");
         const rawData = await d3.json(filePath);
-        console.log("Edge data fetched successfully:", rawData);
+        //console.log("Edge data fetched successfully:", rawData);
         const processedData = preprocessDataForHeatmap(rawData);
         createHeatmap(processedData);
     } catch (error) {
@@ -1194,9 +1268,12 @@ function preprocessDataForHeatmap(rawData) {
 function createHeatmap(data) {
     const tooltip = d3.select("#tooltipHeatmap");
     const container = d3.select('#visualization3');
-    const margin = { top: 50, right: 50, bottom: 50, left: 50 };
-    const width = container.node().getBoundingClientRect().width - margin.left - margin.right;
-    const height = container.node().getBoundingClientRect().height - margin.top - margin.bottom;
+    const margin = { top: 20, right: 0, bottom: 50, left: 200 }; // Increased right margin for better legend positioning
+    const containerWidth = container.node().getBoundingClientRect().width;
+    const containerHeight = container.node().getBoundingClientRect().height;
+    const size = Math.min(containerWidth - margin.left - margin.right, containerHeight - margin.top - margin.bottom); // Make it square
+    const width = size;
+    const height = size;
 
     // Clear any existing content in the container
     container.selectAll('*').remove();
@@ -1217,8 +1294,8 @@ function createHeatmap(data) {
 
     // Create an SVG element inside the container for the heatmap
     const svg = container.append('svg')
-        .attr('width', width + margin.left + margin.right)
-        .attr('height', height + margin.top + margin.bottom);
+        .attr('width', containerWidth)
+        .attr('height', containerHeight);
 
     // Define a clip path to confine the heatmap within the axes
     svg.append('defs').append('clipPath')
@@ -1234,7 +1311,7 @@ function createHeatmap(data) {
         .attr('clip-path', 'url(#clip)');
 
     // Initial log of the transformation values
-    console.log("Initial Transform: translate(", margin.left, ",", margin.top, ")");
+    //console.log("Initial Transform: translate(", margin.left, ",", margin.top, ")");
 
     // Find the maximum value for both Source and Target in the data to set up dynamic domain
     const maxDataValue = d3.max(data, d => Math.max(d.Source, d.Target));
@@ -1286,6 +1363,57 @@ function createHeatmap(data) {
         .attr('transform', `translate(${margin.left},${margin.top})`) // Adjust brush position
         .call(brush);
 
+    // Create color map legend
+    const legendHeight = height;
+    const legendWidth = 20;
+
+    const legendGroup = svg.append('g')
+        .attr('transform', `translate(${margin.left + width + 40},${margin.top})`); // Adjusted to move legend labels further right
+
+    const legendScale = d3.scaleLinear()
+        .domain([minWeight, maxWeight])
+        .range([legendHeight, 0]);
+
+    const legendAxis = d3.axisRight(legendScale).ticks(6); // Fewer ticks for better spacing
+
+    const legend = legendGroup.append("g")
+        .attr("class", "legend axis")
+        .attr("transform", "translate(30, 0)")  // Move the legend labels 30px to the right
+        .call(legendAxis);
+
+    const legendGradient = legendGroup.append("defs")
+        .append("linearGradient")
+        .attr("id", "legend-gradient")
+        .attr("x1", "0%")
+        .attr("y1", "100%")
+        .attr("x2", "0%")
+        .attr("y2", "0%");
+
+    legendGradient.append("stop")
+        .attr("offset", "0%")
+        .attr("stop-color", colorScale(minWeight));
+
+    legendGradient.append("stop")
+        .attr("offset", "100%")
+        .attr("stop-color", colorScale(maxWeight));
+
+    legendGroup.append("rect")
+        .attr("width", legendWidth)
+        .attr("height", legendHeight)
+        .style("fill", "url(#legend-gradient)")
+        .on('mousemove', function (event) {
+            const legendValue = legendScale.invert(d3.pointer(event)[1]);
+            const colorValue = colorScale(legendValue);  // Get the color value
+
+            tooltip.style('display', 'block')
+                .style('left', `${event.pageX + 10}px`)
+                .style('top', `${event.pageY + 10}px`)
+                .html(`Weight: ${legendValue.toFixed(6)}<br>Color: <span style="display:inline-block; width:12px; height:12px; background-color:${colorValue}; border-radius:50%;"></span>`);
+        })
+        .on('mouseout', function () {
+            tooltip.style('display', 'none');
+        });
+
     function brushStart(event) {
         if (event.sourceEvent.type !== 'end') {
             d3.selectAll('.selection').style('display', 'block');
@@ -1328,17 +1456,17 @@ function createHeatmap(data) {
             return;
         }
         d3.selectAll('.selection').style('display', 'none');
-    
+
         const selection = event.selection;
         const [[x0, y0], [x1, y1]] = selection;
         const selectedSources = data.filter(d => xScale(d.Source) >= x0 && xScale(d.Source) <= x1);
         const minSource = d3.min(selectedSources, d => d.Source);
         const maxSource = d3.max(selectedSources, d => d.Source);
-    
+
         // Set the range values in the input boxes
         document.getElementById('fromBin').value = minSource;
         document.getElementById('toBin').value = maxSource;
-    
+
         // Create a new mouse event to simulate the button click
         const visualizeRangeButton = document.getElementById('visualize-range');
         const clickEvent = new MouseEvent('click', {
@@ -1350,6 +1478,7 @@ function createHeatmap(data) {
         visualizeRangeButton.dispatchEvent(clickEvent);
     }
 }
+
 
 
 
@@ -1441,7 +1570,7 @@ function updateHeatmapHighlights(svg, isRangeHighlight = false) {
         const margin = { top: 10, right: 10, bottom: 30, left: 10 }; // Adjust margin values as needed
         
         renderer.setSize(visualizationContainer.clientWidth - margin.left - margin.right, visualizationContainer.clientHeight - margin.top - margin.bottom);
-        console.log("Renderer dimensions:", visualizationContainer.clientWidth - margin.left - margin.right, visualizationContainer.clientHeight - margin.top - margin.bottom);
+        //console.log("Renderer dimensions:", visualizationContainer.clientWidth - margin.left - margin.right, visualizationContainer.clientHeight - margin.top - margin.bottom);
         visualizationContainer.appendChild(renderer.domElement);
         
         camera = new THREE.PerspectiveCamera(45, (visualizationContainer.clientWidth - margin.left - margin.right) / (visualizationContainer.clientHeight - margin.top - margin.bottom), 0.1, 1000);
@@ -1480,7 +1609,7 @@ function updateHeatmapHighlights(svg, isRangeHighlight = false) {
 
     //For Creating Nodes for 3d Visualization
     function createNodes(nodeData) {
-        // Clear existing nodes in the scene
+        // Clear existing nodes and labels in the scene
         while(scene.children.length > 0) { 
             scene.remove(scene.children[0]); 
         }
@@ -1490,8 +1619,10 @@ function updateHeatmapHighlights(svg, isRangeHighlight = false) {
         const startNode = sortedData[0];
         const endNode = sortedData[sortedData.length - 1];
     
+        const labelNodes = new Set([1, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500]);
+    
         nodeData.forEach(node => {
-            const numericId = node.id.replace(/[^\d]/g, ''); // Assumes node.id is like 'Node1'
+            const numericId = parseInt(node.id.replace(/[^\d]/g, '')); // Assumes node.id is like 'Node1'
             const color = getColorForChID(String(node.ChID));
     
             let nodeMaterial;
@@ -1523,16 +1654,33 @@ function updateHeatmapHighlights(svg, isRangeHighlight = false) {
                 });
             }
     
-            // Reduce the node size
-            const geometry = new THREE.SphereGeometry(0.5, 32, 32); // Node radius set to 0.5
+            // Reduce the node size (radius set to 0.25)
+            const geometry = new THREE.SphereGeometry(0.60, 32, 32); // Node radius set to 0.25
             const sphere = new THREE.Mesh(geometry, nodeMaterial);
             sphere.position.set(node.x * 0.1, node.y * 0.1, node.z * 0.1);
-            sphere.name = numericId;
+            sphere.name = numericId.toString();
             scene.add(sphere);
+    
+            // Add labels for specific nodes
+            if (labelNodes.has(numericId)) {
+                const labelCanvas = document.createElement('canvas');
+                const context = labelCanvas.getContext('2d');
+                context.font = 'Bold 150px Arial';
+                context.fillStyle = 'black';
+                context.fillText(numericId.toString(), 0, 150);
+    
+                const texture = new THREE.CanvasTexture(labelCanvas);
+                const labelMaterial = new THREE.SpriteMaterial({ map: texture });
+                const labelSprite = new THREE.Sprite(labelMaterial);
+                labelSprite.position.set(node.x * 0.1, node.y * 0.1 + 0.5, node.z * 0.1); // Adjust position slightly above the node
+                labelSprite.scale.set(4, 2, 2); // Adjust size of the label
+                scene.add(labelSprite);
+            }
         });
     
         renderer.render(scene, camera);
     }
+    
     
     
     //Updating Tooltip for 3d Visualization
@@ -1603,13 +1751,13 @@ function updateHeatmapHighlights(svg, isRangeHighlight = false) {
             mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
             mouse.y = - (event.clientY / window.innerHeight) * 2 + 1;
         
-            console.log("Mouse NDC Position:", mouse.x, mouse.y); // Debug mouse positions
+            //console.log("Mouse NDC Position:", mouse.x, mouse.y); // Debug mouse positions
         
             var raycaster = new THREE.Raycaster();
             raycaster.setFromCamera(mouse, camera);
         
             var intersects = raycaster.intersectObjects(scene.children);
-            console.log("Intersections found:", intersects.length); // Debug number of intersections
+            //console.log("Intersections found:", intersects.length); // Debug number of intersections
         
             if (intersects.length > 0) {
                 if (selectedNode) {
@@ -1618,20 +1766,20 @@ function updateHeatmapHighlights(svg, isRangeHighlight = false) {
         
                 selectedNode = intersects[0].object;
                 selectedNode.material.emissive.setHex(0xff0000);
-                console.log("Clicked on node: " + selectedNode.name); // Should log when a node is clicked
+                //console.log("Clicked on node: " + selectedNode.name); // Should log when a node is clicked
             }
         }
         
         //// Gene Density Function///
         async function fetchGeneDensityData(filePath) {
             try {
-                console.log("Fetching gene density data...");
+                //console.log("Fetching gene density data...");
                 const response = await fetch(filePath);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 const data = await response.json();
-                console.log("Gene density data fetched successfully:", data);
+                //console.log("Gene density data fetched successfully:", data);
                 window.geneDensityData = data;
             } catch (error) {
                 console.error("Error fetching gene density data:", error);
