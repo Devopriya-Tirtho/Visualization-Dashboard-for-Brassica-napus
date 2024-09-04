@@ -99,7 +99,7 @@ async function fetchAndCacheDatasets() {
     try {
         nodeData3D = await fetchAndCacheJson('Brassica_Node_3D.json', 'nodeData3D');
         nodeData2D = await fetchAndCacheJson('Brassica_Node_2D.json', 'nodeData2D');
-        edgeData = await fetchAndCacheJson('Brassica_Edge_top10_interactions.json', 'edgeData');
+        edgeData = await fetchAndCacheJson('H_Brassica_Edge_processed_with_interaction.json', 'edgeData');
         heatmapData = await fetchAndCacheJson('Brassica_Edge_processed_with_interaction.json', 'heatmapData');
         //geneDensityData = await fetchAndCacheJson('WT_BS_gene_density.json', 'geneDensityData');
         //console.log("All datasets loaded successfully");
@@ -187,7 +187,7 @@ document.getElementById('visualize-nodes').addEventListener('click', function() 
     const selectedNodeIds = Array.from(document.querySelectorAll('#node-checkboxes input[type="checkbox"]:checked'))
                                 .map(checkbox => checkbox.dataset.nodeId);
     const selectedDataset = document.getElementById('dataset-selector').value;
-    const edgeDataPath = selectedDataset === 'Brassica' ? 'Brassica_Edge_top10_interactions.json' : 'Other_Dataset_Edge.json';
+    const edgeDataPath = selectedDataset === 'Brassica' ? 'H_Brassica_Edge_processed_with_interaction.json' : 'Other_Dataset_Edge.json';
 
     // Get interaction filters
     const interactionFilters = Array.from(document.querySelectorAll('input[name="interaction"]:checked'))
@@ -244,7 +244,7 @@ document.getElementById('visualize-range').addEventListener('click', function() 
 
     // Fetch and filter edges, then update the visualizations
     const selectedDataset = document.getElementById('dataset-selector').value;
-    const edgeDataPath = selectedDataset === 'Brassica' ? 'Brassica_Edge_top10_interactions.json' : 'Other_Dataset_Edge.json';
+    const edgeDataPath = selectedDataset === 'Brassica' ? 'H_Brassica_Edge_processed_with_interaction.json' : 'Other_Dataset_Edge.json';
     const nodeDataPath = selectedDataset === 'Brassica' ? 'Brassica_Node_2D.json' : 'Other_Dataset_Node_data.json';
     
     const interactionFilters = Array.from(document.querySelectorAll('input[name="interaction"]:checked'))
@@ -280,7 +280,7 @@ document.getElementById('apply-interaction').addEventListener('click', function(
     }
 
     const selectedDataset = document.getElementById('dataset-selector').value;
-    const edgeDataPath = selectedDataset === 'Brassica' ? 'Brassica_Edge_top10_interactions.json' : 'Other_Dataset_Edge.json';
+    const edgeDataPath = selectedDataset === 'Brassica' ? 'H_Brassica_Edge_processed_with_interaction.json' : 'Other_Dataset_Edge.json';
     const selectedNodeIds = selectedNodeIdsForRange.length > 0 ? selectedNodeIdsForRange : Array.from(document.querySelectorAll('#node-checkboxes input[type="checkbox"]:checked')).map(checkbox => checkbox.dataset.nodeId);
     const nodeDataPath = selectedDataset === 'Brassica' ? 'Brassica_Node_2D.json' : 'Other_Dataset_Node_data.json';
 
@@ -512,7 +512,7 @@ function updateEdgeVisibility(value) {
 
     const selectedDataset = document.getElementById('dataset-selector').value;
     const edgeDataPath = selectedDataset === 'Brassica' 
-        ? 'Brassica_Edge_top10_interactions.json' 
+        ? 'H_Brassica_Edge_processed_with_interaction.json' 
         : 'Other_Dataset_Edge.json';
     const nodeDataPath = selectedDataset === 'Brassica' 
         ? 'Brassica_Node_2D.json' 
@@ -641,10 +641,9 @@ function clearEdges3D() {
 
 // Function for drawing edges of selected nodes for 3D visualization
 function createEdges3D(edgeData) {
-    // Define the colors for interpolation with a broader range
-    const startColor = new THREE.Color(0xFFFFFF); // White
-    const endColor = new THREE.Color(0x00008B);   // Dark Blue
-    const blackColor = new THREE.Color(0x000000); // Black
+    // Define the colors for interpolation between light blue and dark blue
+    const lightBlue = new THREE.Color(0xADD8E6); // Light Blue
+    const darkBlue = new THREE.Color(0x00008B);  // Dark Blue (also for maximum weight)
 
     // Identify the maximum weight
     const maxWeight = 1000.0;
@@ -661,14 +660,14 @@ function createEdges3D(edgeData) {
             let edgeColor;
 
             if (edge.Weight === maxWeight) {
-                // Apply black color to edges with the maximum weight
-                edgeColor = blackColor;
+                // Apply dark blue color to edges with the maximum weight
+                edgeColor = darkBlue;
             } else {
                 // Apply a non-linear scaling to the weight for better color contrast
                 const normalizedWeight = Math.pow((edge.Weight - minWeight) / (maxWeight - minWeight), 0.5);
 
-                // Interpolate between the chosen colors based on the adjusted normalized weight
-                edgeColor = startColor.clone().lerp(endColor, normalizedWeight);
+                // Interpolate between light blue and dark blue based on the adjusted normalized weight
+                edgeColor = lightBlue.clone().lerp(darkBlue, normalizedWeight);
             }
 
             const lineMaterial = new THREE.LineBasicMaterial({
@@ -699,6 +698,8 @@ function createEdges3D(edgeData) {
 
 
 
+
+
     
 ///////////////////////////////////
 
@@ -718,7 +719,7 @@ function drawEdges2D(edgeData, context) {
     // Create a color scale based on edge weights
     const colorScale = d3.scaleLinear()
         .domain([minWeight, maxWeight])
-        .range(['#D3D3D3', '#000000']);  // Light grey to black
+        .range(['#ADD8E6', '#00008B']);  // Light grey to black
 
     context.globalAlpha = 0.5;  // 50% opacity for a subtle appearance
     context.lineWidth = 2;  // Slightly thicker line for better visibility
@@ -1598,11 +1599,53 @@ function updateHeatmapHighlights(svg, isRangeHighlight = false) {
         
         scene.background = new THREE.Color(0xf0f0f0);
         
+
+        //Axis Helper for showing x,y,z axes in 3d vis
+        //after initializing the scene and renderer
+        // Create a small scene for the axes helper
+        //It will show a red line for the x-axis, a green line for the y-axis, and a blue line for the z-axis.
+        const axesScene = new THREE.Scene();
+        const axesHelper = new THREE.AxesHelper(2); // Size of the axes helper
+        axesScene.add(axesHelper);
+
+        // Create a smaller camera for the axes helper
+        const axesCamera = new THREE.PerspectiveCamera(
+            50, // Field of view
+            window.innerWidth / window.innerHeight, // Aspect ratio
+            0.1, // Near clipping plane
+            1000 // Far clipping plane
+        );
+        axesCamera.up = camera.up; // Use the same up direction as the main camera
+
+        // Create a smaller renderer for the axes helper
+        const axesRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        axesRenderer.setSize(100, 100); // Size of the axes helper renderer
+        axesRenderer.setClearColor(0x000000, 0); // Transparent background
+
+        // Position the axes renderer within the visualization container
+        axesRenderer.domElement.style.position = 'absolute';
+        axesRenderer.domElement.style.bottom = '10px'; // Position at the bottom
+        axesRenderer.domElement.style.left = '10px'; // Position at the left
+
+        // Append the axes renderer to the visualization container
+        visualizationContainer.appendChild(axesRenderer.domElement);
         // Animation loop
         function animate() {
             requestAnimationFrame(animate);
+        
             controls.update(); // Needed if controls.enableDamping or controls.autoRotate are set to true
+        
+            // Render the main scene
             renderer.render(scene, camera);
+        
+            // Update the axes camera to match the main camera's orientation
+            axesCamera.position.copy(camera.position);
+            axesCamera.position.sub(controls.target); // Translate to the camera's position relative to the target
+            axesCamera.position.setLength(5); // Set the distance of the camera from the origin
+            axesCamera.lookAt(axesScene.position); // Look at the origin (0,0,0) of the axesScene
+        
+            // Render the axes helper scene
+            axesRenderer.render(axesScene, axesCamera);
         }
         animate();
     
@@ -1921,16 +1964,19 @@ function updateHeatmapHighlights(svg, isRangeHighlight = false) {
 
         ///For Highlighting 3d nodes upon selection ///
 
+
         function highlightNodes3D(nodeIds) {
             scene.children.forEach(child => {
                 if (child.isMesh) {
                     const numericId = child.name; // Assuming node ID is stored in the name property
                     if (nodeIds.includes(numericId)) {
                         child.material.color.set(0xFFAA18); // Highlight color, e.g., yellow
-                        child.scale.set(2, 2, 2); // Enlarge the node for highlighting
+                        child.material.emissive.set(0xFFAA18); // Set emissive color to match the highlight color
+                        //child.scale.set(2, 2, 2); // Enlarge the node for highlighting //Not enlarging right now
                     } else {
                         child.material.color.set(0xFF0000); // Default color, e.g., red
-                        child.scale.set(1.0, 1.0, 1.0); // Reset the size
+                        child.material.emissive.set(0xFF0000); // Reset emissive color to default
+                        //child.scale.set(1.0, 1.0, 1.0); // Reset the size
                     }
                 }
             });
