@@ -1215,7 +1215,7 @@ function draw2DVisualization(data) {
                     { chromosome: "16", start: 343, end: 368 },
                     { chromosome: "17", start: 369, end: 399 },
                     { chromosome: "18", start: 400, end: 427 },
-                    { chromosome: "19", start: 428, end: 500 }
+                    { chromosome: "19", start: 428, end: 501 }
                 ];
             
                 // Find the corresponding chromosome
