@@ -439,6 +439,11 @@ function updateNodeDropdown(nodes) {
         const numericId = node.id.replace(/^\D+/g, ''); // Removes non-digit characters at the start
         checkbox.dataset.nodeId = numericId; // Store only the numeric ID in data attribute
 
+        if (numericId >= 1 && numericId <= 501 && (numericId - 1) % 10 === 0) {
+            checkbox.checked = true;
+        }
+
+
         const label = document.createElement('label');
         label.htmlFor = `node${index}`;
         label.textContent = node.id; // Display the original node ID as the label text
@@ -968,8 +973,16 @@ let initialColorScale;
 function drawLinks({ svg, sourceScale, targetScale, data, width, height, useWeightColor = false }) {
     svg.selectAll("path").remove();
 
-    initialColorScale = d3.scaleOrdinal(d3.schemeCategory10)
-        .domain([...new Set(data.map(d => d.Source))]);
+    
+
+    //initialColorScale = d3.scaleOrdinal(d3.schemeCategory10)
+        //.domain([...new Set(data.map(d => d.Source))]);
+    
+            // Define a color scale with only 4 colors
+    const colorPalette = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"];  // 4 distinct colors
+    initialColorScale = d3.scaleOrdinal()
+        .domain([...new Set(data.map(d => d.Source))])
+        .range(colorPalette);
 
     // Define a sequential color scale based on weight for gray links
     const weightColorScale = d3.scaleSequential(d3.interpolateBlues)
@@ -1597,7 +1610,7 @@ function updateHeatmapHighlights(svg, isRangeHighlight = false) {
         window.addEventListener('resize', onWindowResize, false);
         onWindowResize();  // Call initially to set size.
         
-        scene.background = new THREE.Color(0xf0f0f0);
+        scene.background = new THREE.Color(0xffffff);
         
 
         //Axis Helper for showing x,y,z axes in 3d vis
