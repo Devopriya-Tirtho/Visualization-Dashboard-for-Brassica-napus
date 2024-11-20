@@ -1191,12 +1191,50 @@ function draw2DVisualization(data) {
                 tooltip.style.display = 'block';
                 tooltip.style.left = `${e.clientX + 10}px`;
                 tooltip.style.top = `${e.clientY + 10}px`;
-                tooltip.innerHTML = `Bin: ${node.id}`;
-
+            
+                // Extract the bin number from the node ID
+                const binNumber = parseInt(node.id.match(/\d+/)[0], 10);
+            
+                // Determine chromosome and bin mapping based on our calculation
+                const chromosomeMapping = [
+                    { chromosome: "1", start: 1, end: 18 },
+                    { chromosome: "2", start: 19, end: 37 },
+                    { chromosome: "3", start: 38, end: 60 },
+                    { chromosome: "4", start: 61, end: 74 },
+                    { chromosome: "5", start: 75, end: 90 },
+                    { chromosome: "6", start: 91, end: 107 },
+                    { chromosome: "7", start: 108, end: 123 },
+                    { chromosome: "8", start: 124, end: 137 },
+                    { chromosome: "9", start: 138, end: 163 },
+                    { chromosome: "10", start: 164, end: 174 },
+                    { chromosome: "11", start: 175, end: 203 },
+                    { chromosome: "12", start: 204, end: 233 },
+                    { chromosome: "13", start: 234, end: 276 },
+                    { chromosome: "14", start: 277, end: 311 },
+                    { chromosome: "15", start: 312, end: 342 },
+                    { chromosome: "16", start: 343, end: 368 },
+                    { chromosome: "17", start: 369, end: 399 },
+                    { chromosome: "18", start: 400, end: 427 },
+                    { chromosome: "19", start: 428, end: 500 }
+                ];
+            
+                // Find the corresponding chromosome
+                const chromosomeInfo = chromosomeMapping.find(
+                    (entry) => binNumber >= entry.start && binNumber <= entry.end
+                );
+            
+                // Update the tooltip text
+                if (chromosomeInfo) {
+                    tooltip.innerHTML = `Chromosome ${chromosomeInfo.chromosome}: Bin ${binNumber}`;
+                } else {
+                    tooltip.innerHTML = `Unknown Chromosome: Bin ${binNumber}`;
+                }
+            
                 // Highlight the node
                 context.fillStyle = 'yellow'; // Change color for highlight
                 foundNode = true;
-            } else {
+            }
+             else {
                 // Reset to original color
                 if (node === startNode) {
                     context.fillStyle = "green"; // Start node color
@@ -1746,10 +1784,46 @@ function updateHeatmapHighlights(svg, isRangeHighlight = false) {
     function updateTooltip(event, node) {
         const tooltip = document.getElementById('tooltip3D');
         if (node) {
+            const binNumber = parseInt(node.name.match(/\d+/)[0], 10);
+    
+            // Define the chromosome mapping
+            const chromosomeMapping = [
+                { chromosome: "1", start: 1, end: 18 },
+                { chromosome: "2", start: 19, end: 37 },
+                { chromosome: "3", start: 38, end: 60 },
+                { chromosome: "4", start: 61, end: 74 },
+                { chromosome: "5", start: 75, end: 90 },
+                { chromosome: "6", start: 91, end: 107 },
+                { chromosome: "7", start: 108, end: 123 },
+                { chromosome: "8", start: 124, end: 137 },
+                { chromosome: "9", start: 138, end: 163 },
+                { chromosome: "10", start: 164, end: 174 },
+                { chromosome: "11", start: 175, end: 203 },
+                { chromosome: "12", start: 204, end: 233 },
+                { chromosome: "13", start: 234, end: 276 },
+                { chromosome: "14", start: 277, end: 311 },
+                { chromosome: "15", start: 312, end: 342 },
+                { chromosome: "16", start: 343, end: 368 },
+                { chromosome: "17", start: 369, end: 399 },
+                { chromosome: "18", start: 400, end: 427 },
+                { chromosome: "19", start: 428, end: 500 }
+            ];
+    
+            // Find the corresponding chromosome
+            const chromosomeInfo = chromosomeMapping.find(
+                (entry) => binNumber >= entry.start && binNumber <= entry.end
+            );
+    
+            // Update the tooltip text
+            if (chromosomeInfo) {
+                tooltip.innerHTML = `Chromosome ${chromosomeInfo.chromosome}: Bin ${binNumber}`;
+            } else {
+                tooltip.innerHTML = `Unknown Chromosome: Bin ${binNumber}`;
+            }
+    
             tooltip.style.display = 'block';
             tooltip.style.left = `${event.clientX + 10}px`;
             tooltip.style.top = `${event.clientY + 10}px`;
-            tooltip.innerHTML = `Node ID: ${node.name}`;
         } else {
             tooltip.style.display = 'none';
         }
