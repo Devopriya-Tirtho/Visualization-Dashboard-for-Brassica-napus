@@ -2061,5 +2061,3 @@ function updateHeatmapHighlights(svg, isRangeHighlight = false) {
         }
         
         document.getElementById('clear-visualizations').addEventListener('click', clearVisualizations);
-        
-        
